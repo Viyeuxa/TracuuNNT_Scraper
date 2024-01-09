@@ -4,21 +4,31 @@ from abc import abstractmethod
 from unicodedata import normalize
 from bs4 import BeautifulSoup as bs
 from seleniumwire import webdriver
-from selenium.webdriver.firefox.options import Options
-
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+import requests
+import urllib3
+import ssl
 logger = logging.getLogger(__name__)
 
 def normalize_nav_string(string):
     return normalize('NFKC', string.text.strip())
 
-class ProfileScraper(webdriver.Firefox):
+class ProfileScraper(webdriver.Chrome):
     """Abstract class for scraper"""
     scopes = None
     site = None
     field_xpath = None
     def __init__(self, *args, headless=True, solver=None, **kwargs):
+
+
+
         options = Options()
-        options.headless = headless
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+
+
         super().__init__(options=options, *args, **kwargs)
         if not all((self.scopes, self.site, self.field_xpath)):
             raise NotImplementedError("Attributes 'scopes', 'site', 'field_xpath' must all be implemented")
@@ -47,23 +57,23 @@ class ProfileScraper(webdriver.Firefox):
         return answer
 
     def _submit_captcha(self, answer, click=True):
-        elem = self.find_element_by_xpath("//input[@id='captcha']")
+        elem = self.find_element(By.XPATH, "//input[@id='captcha']")
         elem.send_keys(answer)
-        elem = self.find_element_by_xpath("//input[@class='subBtn']")
+        elem = self.find_element(By.XPATH, "//input[@class='subBtn']")
         if click:
             elem.click()
 
     def _goto_detail(self, profile_index=0):
         """Go to nth-profile"""
         if profile_index == 0:
-            self.find_element_by_xpath("//a[contains(@href, 'javascript:submitform')]").click()
+            self.find_element(By.XPATH, "//a[contains(@href, 'javascript:submitform')]").click()
         else:
             elems = self.find_elements_by_xpath("//a[contains(@href, 'javascript:submitform')]")
             elems[profile_index].click()
 
     def _goto_next_page(self, next_page):
         """Go to next page"""
-        next_elem = self.find_element_by_xpath(f"//a[@href='javascript:gotoPage({next_page})']")
+        next_elem = self.find_element(By.XPATH, f"//a[@href='javascript:gotoPage({next_page})']")
         next_elem.click()
         
     def _process_outer(self, soup):
@@ -106,7 +116,7 @@ class ProfileScraper(webdriver.Firefox):
         for term in search_terms:
             value = search_terms[term]
             xpath = self.field_xpath[term]
-            elem = self.find_element_by_xpath(xpath)
+            elem = self.find_element(By.XPATH, xpath)
             elem.clear() # field persists data during session, no matter where you are
             elem.send_keys(value)
 
@@ -129,7 +139,7 @@ class ProfileScraper(webdriver.Firefox):
 class PersonalProfileScraper(ProfileScraper):
     """Scraper for personal site http://tracuunnt.gdt.gov.vn/tcnnt/mstcn.jsp"""
     scopes = ['.+captcha.png.+', '.+mstcn.jsp$']
-    site = r'http://tracuunnt.gdt.gov.vn/tcnnt/mstcn.jsp'
+    site = r'https://tracuunnt.gdt.gov.vn/tcnnt/mstcn.jsp'
     field_xpath = {'taxnum': "//input[@name='mst1']",
                    'name': "//input[@name='fullname1']",
                    'address': "//input[@name='address']",
@@ -211,7 +221,7 @@ class BusinessProfileScraper(ProfileScraper):
     """Scraper for business site http://tracuunnt.gdt.gov.vn/tcnnt/mstdn.jsp"""
     scopes = ['.+captcha.png.+', '.+mstdn.jsp$', '.+doanhnghiepchuquan.jsp$', '.+chinhanh.jsp$',
               '.+tructhuoc.jsp$', '.+daidien.jsp$', '.+loaithue.jsp$', '.+nganhkinhdoanh.jsp$']
-    site = r'http://tracuunnt.gdt.gov.vn/tcnnt/mstdn.jsp'
+    site = r'https://tracuunnt.gdt.gov.vn/tcnnt/mstdn.jsp'
     field_xpath = {'taxnum': "//input[@name='mst']",
                    'name': "//input[@name='fullname']",
                    'address': "//input[@name='address']",
